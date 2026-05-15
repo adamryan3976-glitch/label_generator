@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avery Label Master</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏷️</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%234F46E5%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2260%22 fill=%22white%22>L</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body { margin: 0; padding: 0; background: white; }
+            .no-print { display: none !important; }
+            .print-page { 
+                width: 8.5in; 
+                height: 11in; 
+                margin: 0 auto; 
+                padding: var(--m-top) var(--m-side); 
+                page-break-after: always;
+                box-sizing: border-box;
+            }
+        }
+        
+        .label-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .label-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Screen Preview Rendering */
+        #preview-container {
+            background: #e5e7eb;
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+
+        .sheet-preview {
+            background: white;
+            width: 8.5in;
+            height: 11in;
+            margin: 0 auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .debug-border .label-cell {
+            outline: 1px dashed #cbd5e1;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+    <div class="no-print min-h-screen flex flex-col md:flex-row">
+        <!-- Sidebar Controls -->
+        <aside class="w-full md:w-80 bg-white border-r border-slate-200 p-6 space-y-6 overflow-y-auto">
+            <header>
+                <h1 class="text-xl font-bold text-indigo-600 flex items-center gap-2">
+                    <span>🏷️</span> Label Master
+                </h1>
+                <p class="text-xs text-slate-500 mt-1">Avery Template Repeater</p>
+            </header>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">1. Choose Image</label>
+                    <input type="file" id="imageInput" accept="image/*" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1">2. Template Code</label>
+                    <select id="templateSelect" class="w-full border rounded-md p-2 text-sm bg-slate-50">
+                        <option value="5160">5160 (1" x 2.625") - 30/Sheet</option>
+                        <option value="5163">5163 (2" x 4") - 10/Sheet</option>
+                        <option value="5167">5167 (0.5" x 1.75") - 80/Sheet</option>
+                        <option value="5195">5195 (0.66" x 1.75") - 60/Sheet</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Start Row</label>
+                        <input type="number" id="startRow" min="1" value="1" class="w-full border rounded-md p-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Start Col</label>
+                        <input type="number" id="startCol" min="1" value="1" class="w-full border rounded-md p-2 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1">Total Labels</label>
+                    <input type="number" id="totalCount" min="1" value="30" class="w-full border rounded-md p-2 text-sm">
+                </div>
+
+                <div class="flex items-center gap-2 pt-2">
+                    <input type="checkbox" id="showBorders" class="rounded text-indigo-600">
+                    <label for="showBorders" class="text-sm">Show print guides</label>
+                </div>
+
+                <button onclick="window.print()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg shadow-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                    Print Labels
+                </button>
+            </div>
+
+            <footer class="text-[10px] text-slate-400 pt-10">
+                <p>Ensure "Margins" is set to "None" in your print dialog for perfect alignment.</p>
+            </footer>
+        </aside>
+
+        <!-- Main Preview Area -->
+        <main id="preview-container" class="flex-1 flex justify-center overflow-auto">
+            <div id="render-area" class="h-max">
+                <!-- Sheets will be injected here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Hidden Printable Area (Will be identical to render-area structure) -->
+    <div id="print-area" class="hidden print:block"></div>
+
+    <script>
+        const TEMPLATES = {
+            "5160": { 
+                rows: 10, cols: 3, 
+                width: "2.625in", height: "1in",
+                mTop: "0.5in", mSide: "0.19in", 
+                vGap: "0in", hGap: "0.125in" 
+            },
+            "5163": { 
+                rows: 5, cols: 2, 
+                width: "4in", height: "2in",
+                mTop: "0.5in", mSide: "0.156in", 
+                vGap: "0in", hGap: "0.188in" 
+            },
+            "5167": { 
+                rows: 20, cols: 4, 
+                width: "1.75in", height: "0.5in",
+                mTop: "0.5in", mSide: "0.28in", 
+                vGap: "0in", hGap: "0.3in" 
+            },
+            "5195": { 
+                rows: 15, cols: 4, 
+                width: "1.75in", height: "0.66in",
+                mTop: "0.5in", mSide: "0.28in", 
+                vGap: "0in", hGap: "0.3in" 
+            }
+        };
+
+        let currentImage = null;
+
+        const imageInput = document.getElementById('imageInput');
+        const templateSelect = document.getElementById('templateSelect');
+        const startRow = document.getElementById('startRow');
+        const startCol = document.getElementById('startCol');
+        const totalCount = document.getElementById('totalCount');
+        const showBorders = document.getElementById('showBorders');
+        const renderArea = document.getElementById('render-area');
+        const printArea = document.getElementById('print-area');
+
+        // Listeners
+        [templateSelect, startRow, startCol, totalCount, showBorders].forEach(el => {
+            el.addEventListener('change', generateLabels);
+            el.addEventListener('input', generateLabels);
+        });
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    currentImage = event.target.result;
+                    generateLabels();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function generateLabels() {
+            const template = TEMPLATES[templateSelect.value];
+            const startR = parseInt(startRow.value) || 1;
+            const startC = parseInt(startCol.value) || 1;
+            const count = parseInt(totalCount.value) || 1;
+            const showG = showBorders.checked;
+
+            // Calculate overall grid parameters
+            const cellsPerSheet = template.rows * template.cols;
+            const skipCells = ((startR - 1) * template.cols) + (startC - 1);
+            const totalRequiredCells = skipCells + count;
+            const numSheets = Math.ceil(totalRequiredCells / cellsPerSheet);
+
+            let htmlContent = '';
+            let currentLabelIndex = 0;
+
+            for (let s = 0; s < numSheets; s++) {
+                let sheetHtml = `<div class="sheet-preview print-page ${showG ? 'debug-border' : ''}" style="
+                    --m-top: ${template.mTop}; 
+                    --m-side: ${template.mSide};
+                    padding: ${template.mTop} ${template.mSide};
+                    display: grid;
+                    grid-template-columns: repeat(${template.cols}, ${template.width});
+                    grid-template-rows: repeat(${template.rows}, ${template.height});
+                    column-gap: ${template.hGap};
+                    row-gap: ${template.vGap};
+                ">`;
+
+                for (let i = 0; i < cellsPerSheet; i++) {
+                    const globalIndex = (s * cellsPerSheet) + i;
+                    const isLabel = globalIndex >= skipCells && currentLabelIndex < count;
+                    
+                    sheetHtml += `<div class="label-cell">`;
+                    if (isLabel && currentImage) {
+                        sheetHtml += `<img src="${currentImage}" class="label-image">`;
+                        currentLabelIndex++;
+                    }
+                    sheetHtml += `</div>`;
+                }
+
+                sheetHtml += `</div><div class="no-print h-8"></div>`;
+                htmlContent += sheetHtml;
+            }
+
+            renderArea.innerHTML = htmlContent;
+            printArea.innerHTML = htmlContent;
+        }
+
+        // Initialize
+        generateLabels();
+    </script>
+</body>
+</html>
