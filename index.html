@@ -8,25 +8,47 @@
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%234F46E5%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2260%22 fill=%22white%22>L</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        :root {
+            --nudge-x: 0in;
+            --nudge-y: 0in;
+        }
+
         @media print {
-            body { margin: 0; padding: 0; background: white; }
+            @page {
+                size: letter;
+                margin: 0;
+            }
+            body { margin: 0; padding: 0; background: white !important; }
             .no-print { display: none !important; }
             .print-page { 
                 width: 8.5in; 
                 height: 11in; 
-                margin: 0 auto; 
-                padding: var(--m-top) var(--m-side); 
+                margin: 0 !important; 
+                padding-top: calc(var(--m-top) + var(--nudge-y)) !important; 
+                padding-left: calc(var(--m-side) + var(--nudge-x)) !important;
                 page-break-after: always;
                 box-sizing: border-box;
+                overflow: hidden;
+                background: white !important;
             }
         }
         
         .label-cell {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
             box-sizing: border-box;
+            width: var(--label-w);
+            height: var(--label-h);
+            vertical-align: top;
+            margin-right: var(--h-gap);
+            margin-bottom: var(--v-gap);
+        }
+
+        /* Remove margin from last column to prevent wrapping */
+        .label-cell:nth-child(var(--cols)n) {
+            margin-right: 0 !important;
         }
 
         .label-image {
@@ -35,7 +57,6 @@
             object-fit: contain;
         }
 
-        /* Screen Preview Rendering */
         #preview-container {
             background: #e5e7eb;
             min-height: 100vh;
@@ -48,8 +69,11 @@
             height: 11in;
             margin: 0 auto;
             box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            position: relative;
             box-sizing: border-box;
+            text-align: left;
+            font-size: 0; /* Remove whitespace between inline-block cells */
+            padding-top: calc(var(--m-top) + var(--nudge-y));
+            padding-left: calc(var(--m-side) + var(--nudge-x));
         }
 
         .debug-border .label-cell {
@@ -60,7 +84,6 @@
 <body class="bg-slate-50 text-slate-900">
 
     <div class="no-print min-h-screen flex flex-col md:flex-row">
-        <!-- Sidebar Controls -->
         <aside class="w-full md:w-80 bg-white border-r border-slate-200 p-6 space-y-6 overflow-y-auto">
             <header>
                 <h1 class="text-xl font-bold text-indigo-600 flex items-center gap-2">
@@ -85,7 +108,7 @@
                     </select>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-2 gap-3 border-t pt-4">
                     <div>
                         <label class="block text-sm font-medium mb-1">Start Row</label>
                         <input type="number" id="startRow" min="1" value="1" class="w-full border rounded-md p-2 text-sm">
@@ -97,8 +120,22 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium mb-1">Total Labels</label>
+                    <label class="block text-sm font-medium mb-1">Total Labels to Print</label>
                     <input type="number" id="totalCount" min="1" value="30" class="w-full border rounded-md p-2 text-sm">
+                </div>
+
+                <div class="space-y-2 border-t pt-4">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Calibration (Nudge)</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] text-slate-500">Horizontal (in)</label>
+                            <input type="number" id="nudgeX" step="0.01" value="0" class="w-full border rounded-md p-1 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-500">Vertical (in)</label>
+                            <input type="number" id="nudgeY" step="0.01" value="0" class="w-full border rounded-md p-1 text-sm">
+                        </div>
+                    </div>
                 </div>
 
                 <div class="flex items-center gap-2 pt-2">
@@ -113,19 +150,15 @@
             </div>
 
             <footer class="text-[10px] text-slate-400 pt-10">
-                <p>Ensure "Margins" is set to "None" in your print dialog for perfect alignment.</p>
+                <p><strong>PRO TIP:</strong> Many printers have a "printable area" limitation. If the top row is missing, increase the <strong>Vertical Nudge</strong>.</p>
             </footer>
         </aside>
 
-        <!-- Main Preview Area -->
         <main id="preview-container" class="flex-1 flex justify-center overflow-auto">
-            <div id="render-area" class="h-max">
-                <!-- Sheets will be injected here -->
-            </div>
+            <div id="render-area" class="h-max"></div>
         </main>
     </div>
 
-    <!-- Hidden Printable Area (Will be identical to render-area structure) -->
     <div id="print-area" class="hidden print:block"></div>
 
     <script>
@@ -133,7 +166,7 @@
             "5160": { 
                 rows: 10, cols: 3, 
                 width: "2.625in", height: "1in",
-                mTop: "0.5in", mSide: "0.19in", 
+                mTop: "0.5in", mSide: "0.1875in", 
                 vGap: "0in", hGap: "0.125in" 
             },
             "5163": { 
@@ -164,12 +197,12 @@
         const startCol = document.getElementById('startCol');
         const totalCount = document.getElementById('totalCount');
         const showBorders = document.getElementById('showBorders');
+        const nudgeX = document.getElementById('nudgeX');
+        const nudgeY = document.getElementById('nudgeY');
         const renderArea = document.getElementById('render-area');
         const printArea = document.getElementById('print-area');
 
-        // Listeners
-        [templateSelect, startRow, startCol, totalCount, showBorders].forEach(el => {
-            el.addEventListener('change', generateLabels);
+        [templateSelect, startRow, startCol, totalCount, showBorders, nudgeX, nudgeY].forEach(el => {
             el.addEventListener('input', generateLabels);
         });
 
@@ -191,36 +224,38 @@
             const startC = parseInt(startCol.value) || 1;
             const count = parseInt(totalCount.value) || 1;
             const showG = showBorders.checked;
+            
+            // Update nudge variables
+            document.documentElement.style.setProperty('--nudge-x', nudgeX.value + 'in');
+            document.documentElement.style.setProperty('--nudge-y', nudgeY.value + 'in');
 
-            // Calculate overall grid parameters
             const cellsPerSheet = template.rows * template.cols;
             const skipCells = ((startR - 1) * template.cols) + (startC - 1);
             const totalRequiredCells = skipCells + count;
             const numSheets = Math.ceil(totalRequiredCells / cellsPerSheet);
 
             let htmlContent = '';
-            let currentLabelIndex = 0;
+            let labelsPlaced = 0;
 
             for (let s = 0; s < numSheets; s++) {
                 let sheetHtml = `<div class="sheet-preview print-page ${showG ? 'debug-border' : ''}" style="
                     --m-top: ${template.mTop}; 
                     --m-side: ${template.mSide};
-                    padding: ${template.mTop} ${template.mSide};
-                    display: grid;
-                    grid-template-columns: repeat(${template.cols}, ${template.width});
-                    grid-template-rows: repeat(${template.rows}, ${template.height});
-                    column-gap: ${template.hGap};
-                    row-gap: ${template.vGap};
+                    --label-w: ${template.width};
+                    --label-h: ${template.height};
+                    --h-gap: ${template.hGap};
+                    --v-gap: ${template.vGap};
+                    --cols: ${template.cols};
                 ">`;
 
                 for (let i = 0; i < cellsPerSheet; i++) {
                     const globalIndex = (s * cellsPerSheet) + i;
-                    const isLabel = globalIndex >= skipCells && currentLabelIndex < count;
+                    const isLabel = globalIndex >= skipCells && labelsPlaced < count;
                     
                     sheetHtml += `<div class="label-cell">`;
                     if (isLabel && currentImage) {
                         sheetHtml += `<img src="${currentImage}" class="label-image">`;
-                        currentLabelIndex++;
+                        labelsPlaced++;
                     }
                     sheetHtml += `</div>`;
                 }
@@ -233,7 +268,6 @@
             printArea.innerHTML = htmlContent;
         }
 
-        // Initialize
         generateLabels();
     </script>
 </body>
